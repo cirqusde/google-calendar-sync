@@ -1,4 +1,5 @@
 # google-calendar-sync
+[![npm version](https://badge.fury.io/js/@cirqusde%2Fgoogle-calendar-sync.svg)](https://www.npmjs.com/package/@cirqusde/google-calendar-sync)
 
 Sync your private google calendar with your work google calendar.  
 Details of the event will be left out - it will only be visible as 'Private event' in your work calendar.
@@ -26,9 +27,9 @@ Details of the event will be left out - it will only be visible as 'Private even
     }
   ]
   ```
-- Run it with `npx -y @cirqusde/google-calendar-sync`
+- Run it with `npx -y @cirqusde/google-calendar-sync` (or even better: Add a cronjob to run it repeatedly)
 
 ## Publish to npm
 - Bump version in `package.json`
 - Run `npm install`
-- Run `npm publish`
+- Run `npm publish --access public`
