@@ -38,7 +38,10 @@ const syncCalendar = async (): Promise<{
             timeMin: earliestDate.toISOString(),
             timeMax: latestDate.toISOString(),
         });
-        const sourceEvents = sourceEventsResponse.data.items || [];
+        let sourceEvents: calendar_v3.Schema$Event[] = sourceEventsResponse.data.items || [];
+
+        // Do not include events with transparency === transparent as they do not block the time
+        sourceEvents = sourceEvents.filter(t => !(t.transparency && t.transparency === 'transparent'));
 
         const targetEventsResponse = await calendar.events.list({
             auth,
@@ -134,7 +137,7 @@ const updateEvent = async (sourceEvent: calendar_v3.Schema$Event, sourceEventId:
     });
 }
 
-const getRequestBody = (sourceEvent: calendar_v3.Schema$Event, sourceEventId: string, configEntry: SourceTargetConfiguration) => {
+const getRequestBody = (sourceEvent: calendar_v3.Schema$Event, sourceEventId: string, configEntry: SourceTargetConfiguration): calendar_v3.Schema$Event => {
     return {
         summary: 'Private event',
             description: `This is a private event synced by google-calendar-sync.
