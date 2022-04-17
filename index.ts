@@ -37,6 +37,7 @@ const syncCalendar = async (): Promise<{
             calendarId: configEntry.sourceCalendar,
             timeMin: earliestDate.toISOString(),
             timeMax: latestDate.toISOString(),
+            singleEvents: true,
         });
         let sourceEvents: calendar_v3.Schema$Event[] = sourceEventsResponse.data.items || [];
 
@@ -48,6 +49,7 @@ const syncCalendar = async (): Promise<{
             calendarId: configEntry.targetCalendar,
             timeMin: earliestDate.toISOString(),
             timeMax: latestDate.toISOString(),
+            singleEvents: true,
         });
         const targetEvents = targetEventsResponse.data.items;
 
