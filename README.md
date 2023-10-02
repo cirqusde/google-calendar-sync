@@ -31,7 +31,8 @@ Details of the event will be left out - it will only be visible as 'Private even
     "sourceIcalLink": "https://ical-link.com",
     "targetCalendar": "simon@cirqus.de",
     "futureDays": 180,
-    "pastDays": 14
+    "pastDays": 14,
+    "label": "Some event title"
     }
   ]
   ```
