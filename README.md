@@ -15,12 +15,20 @@ Details of the event will be left out - it will only be visible as 'Private even
     - For the target calendar, write access is required (your administrator might have to enable this in the Google Admin console)
   - Add a unique id to each source-target combination (this is used when multiple sources sync into the same target)
   - `futureDays` defaults to `14`, `pastDays` to `7`.
+  - Instead of the source calendar, an ical link can be used as well
   - Example config:
   ```json
   [
     {
     "id": "sync-id-1",
     "sourceCalendar": "simon@gmail.com",
+    "targetCalendar": "simon@cirqus.de",
+    "futureDays": 180,
+    "pastDays": 14
+    },
+    {
+    "id": "sync-id-2",
+    "sourceIcalLink": "https://ical-link.com",
     "targetCalendar": "simon@cirqus.de",
     "futureDays": 180,
     "pastDays": 14

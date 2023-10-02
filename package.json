@@ -29,6 +29,7 @@
   "dependencies": {
     "googleapis": "^100.0.0",
     "moment": "^2.29.2",
+    "node-ical": "^0.16.1",
     "ts-node": "^10.7.0"
   }
 }
