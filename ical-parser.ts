@@ -25,6 +25,7 @@ const mapIcalEventToSourceEvent = (event: ical.VEvent): SourceEvent => {
     return {
         id: event.uid,
         summary: event.summary,
+        description: event.description,
         status,
         transparency,
         start: new Date(event.start),

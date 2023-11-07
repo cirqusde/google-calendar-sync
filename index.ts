@@ -42,6 +42,15 @@ const syncCalendar = async (): Promise<{
             continue;
         }
 
+        // Do not include without title (description)
+        sourceEvents = sourceEvents.filter(t => t.description);
+
+        // Do not include events that were before earliest date (because ical might include old events)
+        sourceEvents = sourceEvents.filter(t => t.start.getTime() > earliestDate.toDate().getTime());
+
+        // Do not include events that were after lates date (because ical might include never events)
+        sourceEvents = sourceEvents.filter(t => t.start.getTime() < latestDate.toDate().getTime());
+
         // Do not include events with transparency === transparent as they do not block the time
         sourceEvents = sourceEvents.filter(t => !(t.transparency && t.transparency === EventTransparency.TRANSPARENT));
 
@@ -174,6 +183,7 @@ const mapGoogleEventToSourceEvent = (event: calendar_v3.Schema$Event): SourceEve
         id: event.id || event.iCalUID,
         status,
         summary: event.summary,
+        description: event.description,
         start: new Date(event.start.dateTime),
         end: new Date(event.end.dateTime),
         transparency,

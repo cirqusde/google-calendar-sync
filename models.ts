@@ -12,6 +12,7 @@ export interface SourceEvent {
     id: string;
     status: EventStatus;
     transparency?: EventTransparency;
+    description: string;
     summary: string;
     start: Date;
     end: Date;
