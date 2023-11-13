@@ -194,10 +194,6 @@ const getGoogleCalendarSourceEvents = async (configEntry: SourceTargetConfigurat
     return googleEvents.map(e => mapGoogleEventToSourceEvent(e));
 }
 
-syncCalendar().then((res) => {
-    console.log(`Everything synced (${res.createCounter} created, ${res.updateCounter} updated, ${res.removeCounter} removed)`);
-});
-
 const getGoogleEventsWithPagination = async (auth: JWT, calendarId: string, timeMin: Date, timeMax: Date): Promise<calendar_v3.Schema$Event[]> => {
     const result: calendar_v3.Schema$Event[] = [];
 
@@ -224,3 +220,7 @@ const getGoogleEventsWithPagination = async (auth: JWT, calendarId: string, time
 
     return result;
 }
+
+syncCalendar().then((res) => {
+    console.log(`Everything synced (${res.createCounter} created, ${res.updateCounter} updated, ${res.removeCounter} removed)`);
+});
