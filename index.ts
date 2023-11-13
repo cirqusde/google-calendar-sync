@@ -29,8 +29,8 @@ const syncCalendar = async (): Promise<{
         const pastDays = configEntry.pastDays || 7;
         const futureDays = configEntry.futureDays || 14;
 
-        const earliestDate = moment(new Date()).subtract(pastDays, 'days');
-        const latestDate = moment(new Date()).add(futureDays, 'days');
+        const earliestDate = moment(new Date()).subtract(pastDays, 'days').toDate();
+        const latestDate = moment(new Date()).add(futureDays, 'days').toDate();
 
         let sourceEvents: SourceEvent[];
         if (configEntry.sourceCalendar) {
@@ -45,23 +45,16 @@ const syncCalendar = async (): Promise<{
         // Do not include without title (description)
         sourceEvents = sourceEvents.filter(t => t.description);
 
-        // Do not include events that were before earliest date (because ical might include old events)
-        sourceEvents = sourceEvents.filter(t => t.start.getTime() > earliestDate.toDate().getTime());
+        // Do not include events that were before earliest date (because ical might include older events)
+        sourceEvents = sourceEvents.filter(t => t.start.getTime() > earliestDate.getTime());
 
-        // Do not include events that were after lates date (because ical might include never events)
-        sourceEvents = sourceEvents.filter(t => t.start.getTime() < latestDate.toDate().getTime());
+        // Do not include events that were after lates date (because ical might include newer events)
+        sourceEvents = sourceEvents.filter(t => t.start.getTime() < latestDate.getTime());
 
         // Do not include events with transparency === transparent as they do not block the time
         sourceEvents = sourceEvents.filter(t => !(t.transparency && t.transparency === EventTransparency.TRANSPARENT));
 
-        const targetEventsResponse = await calendar.events.list({
-            auth,
-            calendarId: configEntry.targetCalendar,
-            timeMin: earliestDate.toISOString(),
-            timeMax: latestDate.toISOString(),
-            singleEvents: true,
-        });
-        const targetEvents = targetEventsResponse.data.items;
+        const targetEvents = await getGoogleEventsWithPagination(auth, configEntry.targetCalendar, earliestDate, latestDate);
 
         let eventsToRemove = targetEvents?.filter(t => t.description?.includes(`google-sync-calendar-config-id: ${configEntry.id}`)) || [];
 
@@ -194,20 +187,40 @@ const getGoogleCalendarSourceEvents = async (configEntry: SourceTargetConfigurat
     const pastDays = configEntry.pastDays || 7;
     const futureDays = configEntry.futureDays || 14;
 
-    const earliestDate = moment(new Date()).subtract(pastDays, 'days');
-    const latestDate = moment(new Date()).add(futureDays, 'days');
+    const earliestDate = moment(new Date()).subtract(pastDays, 'days').toDate();
+    const latestDate = moment(new Date()).add(futureDays, 'days').toDate();
 
-    const sourceEventsResponse = await calendar.events.list({
-        auth,
-        calendarId: configEntry.sourceCalendar,
-        timeMin: earliestDate.toISOString(),
-        timeMax: latestDate.toISOString(),
-        singleEvents: true,
-    });
-    const googleEvents: calendar_v3.Schema$Event[] = sourceEventsResponse.data.items || [];
+    const googleEvents = await getGoogleEventsWithPagination(auth, configEntry.sourceCalendar, earliestDate, latestDate);
     return googleEvents.map(e => mapGoogleEventToSourceEvent(e));
 }
 
 syncCalendar().then((res) => {
     console.log(`Everything synced (${res.createCounter} created, ${res.updateCounter} updated, ${res.removeCounter} removed)`);
 });
+
+const getGoogleEventsWithPagination = async (auth: JWT, calendarId: string, timeMin: Date, timeMax: Date): Promise<calendar_v3.Schema$Event[]> => {
+    const result: calendar_v3.Schema$Event[] = [];
+
+    let nextPageToken = undefined;
+
+    while (true) {
+        const response = await calendar.events.list({
+            auth,
+            calendarId,
+            timeMin: timeMin.toISOString(),
+            timeMax: timeMax.toISOString(),
+            singleEvents: true,
+            pageToken: nextPageToken
+        });
+
+        result.push(...response.data.items);
+        if (response.data.nextPageToken) {
+            nextPageToken = response.data.nextPageToken;
+        } else {
+            // All results retrieved
+            break;
+        }
+    }
+
+    return result;
+}
