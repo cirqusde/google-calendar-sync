@@ -26,90 +26,94 @@ const syncCalendar = async (): Promise<{
     const config: SourceTargetConfiguration[] = JSON.parse(readFileSync('config.json', 'utf8'));
 
     for (const configEntry of config) {
-        const pastDays = configEntry.pastDays || 7;
-        const futureDays = configEntry.futureDays || 14;
+        try {
+            const pastDays = configEntry.pastDays || 7;
+            const futureDays = configEntry.futureDays || 14;
 
-        const earliestDate = moment(new Date()).subtract(pastDays, 'days').toDate();
-        const latestDate = moment(new Date()).add(futureDays, 'days').toDate();
+            const earliestDate = moment(new Date()).subtract(pastDays, 'days').toDate();
+            const latestDate = moment(new Date()).add(futureDays, 'days').toDate();
 
-        let sourceEvents: SourceEvent[];
-        if (configEntry.sourceCalendar) {
-            sourceEvents = await getGoogleCalendarSourceEvents(configEntry);
-        } else if (configEntry.sourceIcalLink) {
-            sourceEvents = await parseIcalFile(configEntry.sourceIcalLink);
-        } else {
-            console.warn(`Either sourceCalendar or sourceIcalLink has to be present for ConfigEntry`);
-            continue;
-        }
-
-        // Do not include without title (description)
-        sourceEvents = sourceEvents.filter(t => t.description);
-
-        // Do not include events that were before earliest date (because ical might include older events)
-        sourceEvents = sourceEvents.filter(t => t.start.getTime() > earliestDate.getTime());
-
-        // Do not include events that were after lates date (because ical might include newer events)
-        sourceEvents = sourceEvents.filter(t => t.start.getTime() < latestDate.getTime());
-
-        // Do not include events with transparency === transparent as they do not block the time
-        sourceEvents = sourceEvents.filter(t => !(t.transparency && t.transparency === EventTransparency.TRANSPARENT));
-
-        const targetEvents = await getGoogleEventsWithPagination(auth, configEntry.targetCalendar, earliestDate, latestDate);
-
-        let eventsToRemove = targetEvents?.filter(t => t.description?.includes(`google-sync-calendar-config-id: ${configEntry.id}`)) || [];
-
-        for (const sourceEvent of sourceEvents) {
-            const sourceEventId = sourceEvent.id;
-            if (!sourceEventId) {
-                console.warn(`Skipping event ${sourceEvent.summary} because no id is available`);
+            let sourceEvents: SourceEvent[];
+            if (configEntry.sourceCalendar) {
+                sourceEvents = await getGoogleCalendarSourceEvents(configEntry);
+            } else if (configEntry.sourceIcalLink) {
+                sourceEvents = await parseIcalFile(configEntry.sourceIcalLink);
+            } else {
+                console.warn(`Either sourceCalendar or sourceIcalLink has to be present for ConfigEntry`);
                 continue;
             }
 
-            if (sourceEvent.status === EventStatus.CANCELLED) {
-                // Will be removed later, if it was synced before
-                continue;
-            }
+            // Do not include without title (description)
+            sourceEvents = sourceEvents.filter(t => t.description);
 
-            const targetEvent = targetEvents.filter(t => t.description?.includes(`google-sync-calender-source-id: ${sourceEventId}`))[0];
-            if (!targetEvent) {
-                try {
-                    await createEvent(sourceEvent, configEntry);
-                    createCounter++;
-                } catch (e) {
-                    console.error('Error while creating event', e);
+            // Do not include events that were before earliest date (because ical might include older events)
+            sourceEvents = sourceEvents.filter(t => t.start.getTime() > earliestDate.getTime());
+
+            // Do not include events that were after lates date (because ical might include newer events)
+            sourceEvents = sourceEvents.filter(t => t.start.getTime() < latestDate.getTime());
+
+            // Do not include events with transparency === transparent as they do not block the time
+            sourceEvents = sourceEvents.filter(t => !(t.transparency && t.transparency === EventTransparency.TRANSPARENT));
+
+            const targetEvents = await getGoogleEventsWithPagination(auth, configEntry.targetCalendar, earliestDate, latestDate);
+
+            let eventsToRemove = targetEvents?.filter(t => t.description?.includes(`google-sync-calendar-config-id: ${configEntry.id}`)) || [];
+
+            for (const sourceEvent of sourceEvents) {
+                const sourceEventId = sourceEvent.id;
+                if (!sourceEventId) {
+                    console.warn(`Skipping event ${sourceEvent.summary} because no id is available`);
+                    continue;
                 }
-                continue;
+
+                if (sourceEvent.status === EventStatus.CANCELLED) {
+                    // Will be removed later, if it was synced before
+                    continue;
+                }
+
+                const targetEvent = targetEvents.filter(t => t.description?.includes(`google-sync-calender-source-id: ${sourceEventId}`))[0];
+                if (!targetEvent) {
+                    try {
+                        await createEvent(sourceEvent, configEntry);
+                        createCounter++;
+                    } catch (e) {
+                        console.error('Error while creating event', e);
+                    }
+                    continue;
+                }
+
+                // Event still exists -> Should not be removed
+                eventsToRemove = eventsToRemove.filter(t => t.description !== targetEvent.description);
+
+                if (areEventsEqual(sourceEvent, mapGoogleEventToSourceEvent(targetEvent))) {
+                    // Nothing to do
+                    continue;
+                }
+
+                // Something got changed
+                try {
+                    await updateEvent(sourceEvent, targetEvent, configEntry);
+                    updateCounter++;
+                } catch (e) {
+                    console.error('Error while updating event', e);
+                }
             }
 
-            // Event still exists -> Should not be removed
-            eventsToRemove = eventsToRemove.filter(t => t.description !== targetEvent.description);
-
-            if (areEventsEqual(sourceEvent, mapGoogleEventToSourceEvent(targetEvent))) {
-                // Nothing to do
-                continue;
+            // Remove events which no longer exist in source
+            for (const eventToRemove of eventsToRemove) {
+                try {
+                    await calendar.events.delete({
+                        auth,
+                        calendarId: configEntry.targetCalendar,
+                        eventId: eventToRemove.id || eventToRemove.iCalUID,
+                    });
+                    removeCounter++;
+                } catch (e) {
+                    console.error('Error while deleting event', e);
+                }
             }
-
-            // Something got changed
-            try {
-                await updateEvent(sourceEvent, targetEvent, configEntry);
-                updateCounter++;
-            } catch (e) {
-                console.error('Error while updating event', e);
-            }
-        }
-
-        // Remove events which no longer exist in source
-        for (const eventToRemove of eventsToRemove) {
-            try {
-                await calendar.events.delete({
-                    auth,
-                    calendarId: configEntry.targetCalendar,
-                    eventId: eventToRemove.id || eventToRemove.iCalUID,
-                });
-                removeCounter++;
-            } catch (e) {
-                console.error('Error while deleting event', e);
-            }
+        } catch (e) {
+            console.error(`Error while processing ${configEntry.id}`, e);
         }
     }
 
