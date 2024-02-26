@@ -43,8 +43,8 @@ const syncCalendar = async (): Promise<{
                 continue;
             }
 
-            // Do not include without title (description)
-            sourceEvents = sourceEvents.filter(t => t.description);
+            // Do not include without title (summary) or description
+            sourceEvents = sourceEvents.filter(t => t.summary || t.description);
 
             // Do not include events that were before earliest date (because ical might include older events)
             sourceEvents = sourceEvents.filter(t => t.start.getTime() > earliestDate.getTime());
